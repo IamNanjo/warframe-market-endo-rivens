@@ -1,3 +1,3 @@
-module github.com/IamNanjo/endo-rivens
+module github.com/IamNanjo/warframe-market-endo-rivens
 
 go 1.23.2
