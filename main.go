@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"strconv"
@@ -42,9 +43,10 @@ type (
 		Status     string `json:"status"`
 	}
 	RivenAuctionItem struct {
-		Name    string `json:"name"`
-		ReRolls int    `json:"re_rolls"`
-		ModRank int    `json:"mod_rank"`
+		Name         string `json:"name"`
+		ReRolls      int    `json:"re_rolls"`
+		ModRank      int    `json:"mod_rank"`
+		MasteryLevel int    `json:"mastery_level"`
 	}
 	RivenAuction struct {
 		Id          string            `json:"id"`
@@ -109,25 +111,40 @@ func getAuctions(weapon string, minReRolls string) (*RivenAuctions, error) {
 func main() {
 	startTime := time.Now()
 
-	maxPrice := 50
-	minReRolls := "50"
+	maxPrice := 50      // Maximum platinum price
+	minReRolls := "50"  // Minimum amount of re-rolls
+	silentMode := false // Only prints wanted auctions
 
-	if len(os.Args) >= 2 {
-		_maxPrice, err := strconv.Atoi(os.Args[1])
-
-		if err != nil {
-			panic(err)
+	positionalArg := 0
+	for _, arg := range os.Args[1:] {
+		if arg == "-s" {
+			silentMode = true
+			continue
 		}
 
-		maxPrice = _maxPrice
-	}
-	if len(os.Args) >= 3 {
-		minReRolls = os.Args[2]
+		positionalArg++
+
+		switch positionalArg {
+		case 1:
+			_maxPrice, err := strconv.Atoi(arg)
+
+			if err != nil {
+				panic(err)
+			}
+
+			maxPrice = _maxPrice
+		case 2:
+			minReRolls = arg
+		}
 	}
 
 	rivenItems, err := getRivenItems()
 	if err != nil {
 		panic(err)
+	}
+
+	if !silentMode {
+		logger.Printf("Found %d riven items. Looking for auctions...\n", len(rivenItems.Payload.Items))
 	}
 
 	// Sleep to prevent being rate limited
@@ -141,40 +158,62 @@ func main() {
 			panic(err)
 		}
 
-		if index != 0 && index%10 == 0 {
+		if !silentMode && index != 0 && index%50 == 0 {
 			logger.Printf("Skipped %d auctions", auctionsSkipped)
 		}
 
 		for _, auction := range rivenAuctions.Payload.Auctions {
-
 			if auction.BuyoutPrice >= maxPrice || auction.Owner.Status == "offline" {
 				auctionsSkipped++
 				continue
 			}
 
-			logger.Printf(
-				"\n"+auctionRoute+"%s"+
-					"\n  -> %d platinum"+
-					"\n  -> %d re-rolls"+
-					"\n  -> %s is %s"+
-					"\n  -> /w %s Hi! Are you still selling the %s %s riven for %d:platinum:?"+
-					"\n\n",
+			// math.Floor((100 × (MasteryLevel - 8) + 22.5 × 2^ModRank + 200 × ReRolls) - 7)
+			endoGains := int(math.Floor((100*(float64(auction.Item.MasteryLevel)-8) + 22.5*math.Pow(2, float64(auction.Item.ModRank)) + 200*float64(auction.Item.ReRolls)) - 7))
+			endoPerPlatinum := float64(endoGains) / float64(auction.BuyoutPrice)
+
+			if !silentMode {
+				logger.Println()
+			}
+
+			logger.Printf("%s%s"+
+				"\n  -> Cost is %d platinum"+
+				"\n  -> Amount of re-rolls is %d"+
+				"\n  -> Mod rank is %d"+
+				"\n  -> Endo gains %d"+
+				"\n  -> Endo per platinum %.2f"+
+				"\n  -> %s is %s",
+				auctionRoute,
 				auction.Id,
 				auction.BuyoutPrice,
 				auction.Item.ReRolls,
+				auction.Item.ModRank,
+				endoGains,
+				endoPerPlatinum,
 				auction.Owner.IngameName,
 				auction.Owner.Status,
-				auction.Owner.IngameName,
-				item.Name,
-				auction.Item.Name,
-				auction.BuyoutPrice,
 			)
+
+			if auction.Owner.Status == "ingame" {
+				logger.Printf("  -> /w %s Hi! Are you still selling the %s %s riven for %d:platinum:?",
+					auction.Owner.IngameName,
+					item.Name,
+					auction.Item.Name,
+					auction.BuyoutPrice,
+				)
+			}
+
+			logger.Print("\n")
 		}
 
 		// Sleep to prevent being rate limited
 		time.Sleep(time.Second / 3)
 	}
 
-	fmt.Printf("Finished after %s\n", time.Since(startTime))
+	runDuration := time.Since(startTime)
+	minutes := int(runDuration.Minutes())
+	seconds := int(runDuration.Seconds()) % 60
+
+	fmt.Printf("Finished after %d %d\n", minutes, seconds)
 	fmt.Scanln()
 }
