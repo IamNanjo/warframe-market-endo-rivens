@@ -214,6 +214,6 @@ func main() {
 	minutes := int(runDuration.Minutes())
 	seconds := int(runDuration.Seconds()) % 60
 
-	fmt.Printf("Finished after %d %d\n", minutes, seconds)
+	fmt.Printf("Finished after %d minutes and %d seconds\n", minutes, seconds)
 	fmt.Scanln()
 }
