@@ -194,7 +194,7 @@ func main() {
 				auction.Owner.Status,
 			)
 
-			if auction.Owner.Status == "ingame" {
+			if auction.Owner.Status != "offline" {
 				logger.Printf("  -> /w %s Hi! Are you still selling the %s %s riven for %d:platinum:?",
 					auction.Owner.IngameName,
 					item.Name,
