@@ -74,10 +74,6 @@ type PrintAuctionParameters struct {
 	silentMode bool
 }
 
-func logError(err error) {
-	errorLogger.Printf("%q", err)
-}
-
 func doJSONRequest(apiRoute string, target interface{}) error {
 	res, err := http.Get(apiUrl + apiRoute)
 	if err != nil {
