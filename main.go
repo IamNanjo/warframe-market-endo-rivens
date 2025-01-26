@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"math"
@@ -10,7 +11,6 @@ import (
 	"os/exec"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -101,13 +101,12 @@ func getRivenItems() (*RivenItems, error) {
 	return rivenItems, nil
 }
 
-func getAuctions(weapon string, minReRolls string) (*RivenAuctions, error) {
+func getAuctions(weapon string) (*RivenAuctions, error) {
 	queryParamList := []string{
 		"type=riven",
 		"buyout_policy=direct",
 		"weapon_url_name=" + weapon,
 		"sort_by=price_asc",
-		"re_rolls_min=" + minReRolls,
 	}
 	queryParams := strings.Join(queryParamList, "&")
 
@@ -172,43 +171,25 @@ func clearScreen() {
 func main() {
 	startTime := time.Now()
 
-	maxPrice := 50      // Maximum platinum price
-	minReRolls := "50"  // Minimum amount of re-rolls
-	silentMode := false // Only prints wanted auctions
-	sortOutput := false // Sort output based on endo per plat
+	minEndoPerPlatinum := flag.Int("minEndo", 300, "Minimum endo gains per platinum cost")
+	minPrice := flag.Int("minPrice", 10, "Minimum platinum price")
+	silentMode := flag.Bool("silent", false, "Silent mode")
+	sortOutput := flag.Bool("sort", false, "Sort output")
 
-	positionalArg := 0
-	for _, arg := range os.Args[1:] {
-		switch arg {
-		case "-s":
-			silentMode = true
-			continue
-		case "-S":
-			sortOutput = true
-			continue
-		}
+	flag.Parse()
 
-		positionalArg++
-
-		switch positionalArg {
-		case 1:
-			_maxPrice, err := strconv.Atoi(arg)
-			if err != nil {
-				panic(err)
-			}
-
-			maxPrice = _maxPrice
-		case 2:
-			minReRolls = arg
-		}
+	if minEndoPerPlatinum == nil || silentMode == nil || sortOutput == nil {
+		errorLogger.Println("Flags return nil pointers.")
+		os.Exit(1)
 	}
 
 	rivenItems, err := getRivenItems()
 	if err != nil {
-		panic(err)
+		errorLogger.Println(err)
+		os.Exit(1)
 	}
 
-	if !silentMode {
+	if !*silentMode {
 		logger.Printf("Found %d riven items. Looking for auctions...\n", len(rivenItems.Payload.Items))
 	}
 
@@ -220,28 +201,29 @@ func main() {
 	foundAuctions := make([]PrintAuctionParameters, 0, 5)
 
 	for index, item := range rivenItems.Payload.Items {
-		rivenAuctions, err := getAuctions(item.UrlName, minReRolls)
+		rivenAuctions, err := getAuctions(item.UrlName)
 		if err != nil {
-			panic(err)
+			errorLogger.Println(err)
+			os.Exit(1)
 		}
 
-		if !silentMode && index != 0 && index%50 == 0 {
+		if !*silentMode && index != 0 && index%50 == 0 {
 			logger.Printf("Skipped %d auctions", auctionsSkipped)
 		}
 
 		for _, auction := range rivenAuctions.Payload.Auctions {
-			if auction.BuyoutPrice >= maxPrice || auction.Owner.Status == "offline" {
+			// math.Floor((100 × (MasteryLevel - 8) + 22.5 × 2^ModRank + 200 × ReRolls) - 7)
+			auction.endoGains = int(math.Floor((100*(float64(auction.Item.MasteryLevel)-8) + 22.5*math.Pow(2, float64(auction.Item.ModRank)) + 200*float64(auction.Item.ReRolls)) - 7))
+			auction.endoPerPlatinum = float64(auction.endoGains) / float64(auction.BuyoutPrice)
+
+			if auction.BuyoutPrice < *minPrice || auction.endoPerPlatinum < float64(*minEndoPerPlatinum) || auction.Owner.Status == "offline" {
 				auctionsSkipped++
 				continue
 			}
 
 			auction.weapon = item.Name
 
-			// math.Floor((100 × (MasteryLevel - 8) + 22.5 × 2^ModRank + 200 × ReRolls) - 7)
-			auction.endoGains = int(math.Floor((100*(float64(auction.Item.MasteryLevel)-8) + 22.5*math.Pow(2, float64(auction.Item.ModRank)) + 200*float64(auction.Item.ReRolls)) - 7))
-			auction.endoPerPlatinum = float64(auction.endoGains) / float64(auction.BuyoutPrice)
-
-			foundAuction := PrintAuctionParameters{auction: auction, itemName: item.Name, silentMode: silentMode}
+			foundAuction := PrintAuctionParameters{auction: auction, itemName: item.Name, silentMode: *silentMode}
 			foundAuctions = append(foundAuctions, foundAuction)
 
 			printAuction(foundAuction)
@@ -251,11 +233,11 @@ func main() {
 		time.Sleep(time.Millisecond * 350)
 	}
 
-	if sortOutput {
+	if *sortOutput {
 		clearScreen()
 
 		sort.SliceStable(foundAuctions, func(i, j int) bool {
-			return foundAuctions[i].auction.endoPerPlatinum > foundAuctions[j].auction.endoPerPlatinum
+			return foundAuctions[i].auction.endoPerPlatinum < foundAuctions[j].auction.endoPerPlatinum
 		})
 
 		for _, auction := range foundAuctions {
@@ -267,6 +249,6 @@ func main() {
 	minutes := int(runDuration.Minutes())
 	seconds := int(runDuration.Seconds()) % 60
 
-	fmt.Printf("Finished after %d minutes and %d seconds\n", minutes, seconds)
+	logger.Printf("Finished after %d minutes and %d seconds\n", minutes, seconds)
 	fmt.Scanln()
 }
