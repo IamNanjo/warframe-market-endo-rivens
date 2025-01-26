@@ -169,6 +169,7 @@ func main() {
 
 	minEndoPerPlatinum := flag.Int("minEndo", 300, "Minimum endo gains per platinum cost")
 	minPrice := flag.Int("minPrice", 10, "Minimum platinum price")
+	maxPrice := flag.Int("maxPrice", 100, "Maximum platinum price")
 	silentMode := flag.Bool("silent", false, "Silent mode")
 	sortOutput := flag.Bool("sort", false, "Sort output")
 
@@ -212,7 +213,7 @@ func main() {
 			auction.endoGains = int(math.Floor((100*(float64(auction.Item.MasteryLevel)-8) + 22.5*math.Pow(2, float64(auction.Item.ModRank)) + 200*float64(auction.Item.ReRolls)) - 7))
 			auction.endoPerPlatinum = float64(auction.endoGains) / float64(auction.BuyoutPrice)
 
-			if auction.BuyoutPrice < *minPrice || auction.endoPerPlatinum < float64(*minEndoPerPlatinum) || auction.Owner.Status == "offline" {
+			if auction.BuyoutPrice < *minPrice || auction.BuyoutPrice > *maxPrice || auction.endoPerPlatinum < float64(*minEndoPerPlatinum) || auction.Owner.Status == "offline" {
 				auctionsSkipped++
 				continue
 			}

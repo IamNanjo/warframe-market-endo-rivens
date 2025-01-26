@@ -12,6 +12,8 @@ Usage of endo-rivens:
         Minimum endo gains per platinum cost (default 300)
   -minPrice int
         Minimum platinum price (default 10)
+  -maxPrice int
+        Maximum platinum price (default 100)
   -silent
         Silent mode
   -sort
