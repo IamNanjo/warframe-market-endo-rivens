@@ -8,12 +8,12 @@ You can enable silent mode, which will make the program only print the wanted au
 
 ```
 Usage of endo-rivens:
+  -maxPrice int
+        Maximum platinum price (default 100)
   -minEndo int
         Minimum endo gains per platinum cost (default 300)
   -minPrice int
         Minimum platinum price (default 10)
-  -maxPrice int
-        Maximum platinum price (default 100)
   -silent
         Silent mode
   -sort
