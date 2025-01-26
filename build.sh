@@ -14,7 +14,7 @@ do
 		output_name+=".exe"
 	fi
 
-	env GOOS=$GOOS GOARCH=$GOARCH go build -o $output_name
+	env GOOS=$GOOS GOARCH=$GOARCH go build -o $output_name -ldflags "-s -w"
 
 	if [ $? -ne 0 ]; then
    		echo "Failed to build for $platform"
