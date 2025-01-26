@@ -1,10 +1,22 @@
 # Warframe Market Endo Rivens
 
-Uses the warframe.market API to fetch riven mod listings with desired
-maximum price and minimum rerolls to maximize endo gains.
+Uses the warframe.market API to fetch riven mod listings with desired endo gains per platinum cost.
 
-You can enable silent mode by passing in the argument `-s`. 
-This will make the program only print the wanted auctions.
+You can enable silent mode, which will make the program only print the wanted auctions.
+
+## Usage
+
+```
+Usage of endo-rivens:
+  -minEndo int
+        Minimum endo gains per platinum cost (default 300)
+  -minPrice int
+        Minimum platinum price (default 10)
+  -silent
+        Silent mode
+  -sort
+        Sort output
+```
 
 ## Example output
 
