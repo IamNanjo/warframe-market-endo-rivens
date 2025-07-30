@@ -1,9 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"math"
 	"net/http"
@@ -13,6 +13,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"golang.org/x/term"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -23,8 +26,9 @@ const (
 )
 
 var (
-	logger      *log.Logger = log.New(os.Stdout, "", 0)
-	errorLogger *log.Logger = log.New(os.Stderr, "Error: ", 0)
+	logger      = log.New(os.Stdout, "", 0)
+	errorLogger = log.New(os.Stderr, "Error: ", 0)
+	rateLimiter = rate.NewLimiter(rate.Limit(3), 3)
 )
 
 type (
@@ -74,7 +78,12 @@ type PrintAuctionParameters struct {
 	silentMode bool
 }
 
-func doJSONRequest(apiRoute string, target interface{}) error {
+func doJSONRequest(apiRoute string, target any) error {
+	err := rateLimiter.Wait(context.Background())
+	if err != nil {
+		errorLogger.Printf("Failed to wait for rate limiter: %v", err)
+	}
+
 	res, err := http.Get(apiUrl + apiRoute)
 	if err != nil {
 		return err
@@ -82,7 +91,7 @@ func doJSONRequest(apiRoute string, target interface{}) error {
 
 	defer res.Body.Close()
 
-	json.NewDecoder(res.Body).Decode(target)
+	json.NewDecoder(res.Body).Decode(&target)
 
 	return nil
 }
@@ -190,9 +199,6 @@ func main() {
 		logger.Printf("Found %d riven items. Looking for auctions...\n", len(rivenItems.Payload.Items))
 	}
 
-	// Sleep to prevent being rate limited
-	time.Sleep(time.Second / 2)
-
 	auctionsSkipped := 0
 
 	foundAuctions := make([]PrintAuctionParameters, 0, 5)
@@ -225,9 +231,6 @@ func main() {
 
 			printAuction(foundAuction)
 		}
-
-		// Sleep to prevent being rate limited
-		time.Sleep(time.Millisecond * 350)
 	}
 
 	if *sortOutput {
@@ -247,5 +250,8 @@ func main() {
 	seconds := int(runDuration.Seconds()) % 60
 
 	logger.Printf("Finished after %d minutes and %d seconds\n", minutes, seconds)
-	fmt.Scanln()
+	stdinFd := int(os.Stdin.Fd())
+	oldState, err := term.MakeRaw(stdinFd)
+	os.Stdin.Read(make([]byte, 1))
+	err = term.Restore(stdinFd, oldState)
 }
